@@ -31,9 +31,17 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Generate App Icons
+        run: dart run flutter_launcher_icons
+
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hutami-Electronics-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
