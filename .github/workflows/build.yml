@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -35,6 +35,14 @@ jobs:
         run: dart run flutter_launcher_icons
 
       - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hutami-Electronics-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
+          overwrite: true
         run: flutter build apk --release
 
       - name: Upload APK Artifact
