@@ -40,33 +40,6 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Hutami-Electronics-APK-${{ github.run_number }}
-          path: build/app/outputs/flutter-apk/app-release.apk
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
           name: Hutami-Electronics-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           overwrite: true
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Hutami-Electronics-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
-          overwrite: true
-        run: flutter build apk --release
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Hutami-Electronics-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Hutami-Electronics-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
