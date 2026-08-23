@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -28,19 +33,30 @@ jobs:
       - name: Generate Android Project Structure
         run: flutter create --org com.example . --platforms=android
 
-      - name: Setup Fixed Keystore
+      - name: Ensure Permanent Keystore
         run: |
           mkdir -p ~/.android
-          # توليد مفتاح توقيع ثابت بنفس البصمة دائماً لكل التحديثات
-          keytool -genkeypair -v \
-            -keystore ~/.android/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -f "debug.keystore" ]; then
+            echo "Using existing permanent keystore from repository."
+            cp debug.keystore ~/.android/debug.keystore
+          else
+            echo "Generating permanent keystore for the first time..."
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            cp ~/.android/debug.keystore debug.keystore
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add debug.keystore
+            git commit -m "Save permanent signing keystore" || true
+            git push origin main || true
+          fi
 
       - name: Configure Firebase & Android Settings
         run: |
