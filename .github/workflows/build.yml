@@ -28,6 +28,10 @@ jobs:
       - name: Generate Android Project Structure
         run: flutter create . --platforms=android
 
+      - name: Set Arabic App Name
+        run: |
+          sed -i 's/android:label="[^"]*"/android:label="الحطامي للإلكترونيات"/g' android/app/src/main/AndroidManifest.xml
+
       - name: Install Dependencies
         run: flutter pub get
 
