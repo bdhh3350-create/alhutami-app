@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "782454185402",
+    "project_id": "alhutami-app",
+    "storage_bucket": "alhutami-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:782454185402:android:61a7d10878c2b373869183",
+        "android_client_info": {
+          "package_name": "com.example.alhutami_electronics"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCavshX-VwaWiDvtdkqMLCyo1WYQkE91AM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
