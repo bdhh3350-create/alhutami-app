@@ -1,7 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'video_splash_screen.dart'; // استدعاء شاشة الفيديو الترحيبية
 
-void main() {
+// دالة التعامل مع الإشعارات والتطبيق مغلق تماماً أو في الخلفية
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // تهيئة فايربيس واستقبال الإشعارات
+  try {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    // طلب إذن الإشعارات لأجهزة Android 13 فما فوق
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // الاشتراك التلقائي في قناة الإشعارات العامة لضمان وصول الرسائل للجميع
+    await messaging.subscribeToTopic('all');
+  } catch (e) {
+    debugPrint("Firebase init error: $e");
+  }
+
   runApp(const HutamiApp());
 }
 
@@ -20,6 +49,14 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // الاستماع للإشعارات أثناء تشغيل التطبيق في الواجهة
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.notification != null) {
+        debugPrint('Title: ${message.notification?.title}');
+        debugPrint('Body: ${message.notification?.body}');
+      }
+    });
   }
 
   @override
