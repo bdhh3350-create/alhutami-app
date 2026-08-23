@@ -5,12 +5,43 @@ void main() {
   runApp(const HutamiApp());
 }
 
-class HutamiApp extends StatelessWidget {
+class HutamiApp extends StatefulWidget {
   const HutamiApp({super.key});
+
+  @override
+  State<HutamiApp> createState() => _HutamiAppState();
+}
+
+class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
+  // مفتاح للتحكم في التنقل بين الشاشات حتى عند عودة التطبيق من الخلفية
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // مراقبة التطبيق: فور فتح التطبيق أو العودة إليه من الخلفية، يعاد تشغيل الفيديو
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      navigatorKey.currentState?.pushReplacement(
+        MaterialPageRoute(builder: (context) => const VideoSplashScreen()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'الحطامي للإلكترونيات',
       theme: ThemeData(
@@ -21,7 +52,7 @@ class HutamiApp extends StatelessWidget {
           secondary: const Color(0xFF00ACC1),
         ),
       ),
-      // جعل شاشة الفيديو هي نقطة البداية عند فتح التطبيق
+      // تشغيل شاشة الفيديو كأول واجهة
       home: const VideoSplashScreen(),
     );
   }
