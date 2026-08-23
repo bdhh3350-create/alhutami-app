@@ -13,7 +13,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-// كلاس مخصص لإرسال الإشعارات التلقائية لجميع الهواتف عبر Firebase Cloud Messaging V1 API
+// كلاس إرسال الإشعارات التلقائية
 class FcmSenderService {
   static Future<void> sendBroadcastNotification({
     required String title,
@@ -251,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ------------------- 1. تبويب الرئيسية (Home Tab) -------------------
+// ------------------- 1. تبويب الرئيسية -------------------
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
@@ -437,7 +437,7 @@ class HomeTab extends StatelessWidget {
   }
 }
 
-// ------------------- 2. تبويب القطع والمنتجات (قاعدة البيانات المباشرة) -------------------
+// ------------------- 2. تبويب المنتجات -------------------
 class ProductsTab extends StatefulWidget {
   const ProductsTab({super.key});
 
@@ -604,7 +604,7 @@ class _ProductsTabState extends State<ProductsTab> {
   }
 }
 
-// ------------------- 3. تبويب الخدمات والبرمجة (Services Tab) -------------------
+// ------------------- 3. تبويب الخدمات -------------------
 class ServicesTab extends StatelessWidget {
   const ServicesTab({super.key});
 
@@ -652,7 +652,7 @@ class ServicesTab extends StatelessWidget {
   }
 }
 
-// ------------------- 4. تبويب الاستعلام عن الصيانة (Tracking Tab) -------------------
+// ------------------- 4. تبويب استعلام الصيانة -------------------
 class TrackingTab extends StatefulWidget {
   const TrackingTab({super.key});
 
@@ -812,7 +812,7 @@ class _TrackingTabState extends State<TrackingTab> {
   }
 }
 
-// ------------------- 5. لوحة تحكم المشرف مع الإشعارات التلقائية -------------------
+// ------------------- 5. لوحة تحكم المشرف -------------------
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -841,7 +841,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     _tabController = TabController(length: 2, vsync: this);
   }
 
-  // إضافة منتج جديد + إرسال إشعار فوري لجميع الزبائن
   void _addProduct() async {
     final name = _prodNameCtrl.text.trim();
     final price = _prodPriceCtrl.text.trim();
@@ -855,7 +854,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     setState(() => _isSending = true);
 
     try {
-      // 1. حفظ في قاعدة بيانات Firestore
       await FirebaseFirestore.instance.collection('products').add({
         'name': name,
         'price': price,
@@ -864,7 +862,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. إرسال إشعار فوري لجميع الهواتف
       await FcmSenderService.sendBroadcastNotification(
         title: 'مركز الحطامي للإلكترونيات ⚡',
         body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
@@ -887,7 +884,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     }
   }
 
-  // تحديث كرت صيانة + إرسال إشعار تلقائي
   void _saveRepairTicket() async {
     final ticketNo = _repairTicketCtrl.text.trim();
     final device = _repairDeviceCtrl.text.trim();
@@ -901,7 +897,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     setState(() => _isSending = true);
 
     try {
-      // 1. حفظ في Firestore
       await FirebaseFirestore.instance.collection('repairs').doc(ticketNo).set({
         'ticketNumber': ticketNo,
         'device': device,
@@ -910,7 +905,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. إرسال إشعار
       await FcmSenderService.sendBroadcastNotification(
         title: 'تحديث حالة الصيانة - الحطامي 📱',
         body: 'الكرت ($ticketNo - $device): $_selectedRepairStatus',
@@ -941,6 +935,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.redAccent.shade700,
+          iconTheme: const IconThemeData(color: Colors.white),
           title: const Text('لوحة إدارة المشرف', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           bottom: TabBar(
             controller: _tabController,
@@ -956,7 +951,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         body: TabBarView(
           controller: _tabController,
           children: [
-            // تبويب 1: إضافة المنتجات
             SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1056,8 +1050,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                 ],
               ),
             ),
-
-            // تبويب 2: إدارة الصيانة
             SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Card(
@@ -1120,54 +1112,84 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
   }
 }
 
-// ------------------- القائمة الجانبية (App Drawer) -------------------
-class AppDrawer extends StatelessWidget {
-  const AppDrawer({super.key});
+// ------------------- نافذة إدخال رمز المشرف المستقلة -------------------
+class AdminPinDialog extends StatefulWidget {
+  const AdminPinDialog({super.key});
 
-  void _showPinDialog(BuildContext context) {
-    final pinController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('رمز دخول المشرف'),
-          content: TextField(
-            controller: pinController,
-            keyboardType: TextInputType.number,
-            obscureText: true,
-            decoration: const InputDecoration(
-              hintText: 'أدخل الرمز السري',
-              prefixIcon: Icon(Icons.lock),
+  @override
+  State<AdminPinDialog> createState() => _AdminPinDialogState();
+}
+
+class _AdminPinDialogState extends State<AdminPinDialog> {
+  final _pinController = TextEditingController();
+  String? _errorMessage;
+
+  void _verifyAndEnter() {
+    final enteredPin = _pinController.text.trim();
+    // يدعم الرمزين 7777 أو 7000
+    if (enteredPin == '7777' || enteredPin == '7000') {
+      Navigator.pop(context); // إغلاق نافذة الـ PIN
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+      );
+    } else {
+      setState(() {
+        _errorMessage = 'الرمز السري غير صحيح! (استخدم 7777 أو 7000)';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: AlertDialog(
+        title: const Text('رمز دخول المشرف', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _pinController,
+              keyboardType: TextInputType.number,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'أدخل الرمز السري',
+                prefixIcon: Icon(Icons.lock),
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _verifyAndEnter(),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1)),
-              onPressed: () {
-                if (pinController.text.trim() == '7777') {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('الرمز السري غير صحيح!')),
-                  );
-                }
-              },
-              child: const Text('دخول', style: TextStyle(color: Colors.white)),
-            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ],
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1)),
+            onPressed: _verifyAndEnter,
+            child: const Text('دخول', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
+}
+
+// ------------------- القائمة الجانبية (App Drawer) -------------------
+class AppDrawer extends StatelessWidget {
+  const AppDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -1207,8 +1229,11 @@ class AppDrawer extends StatelessWidget {
             leading: const Icon(Icons.admin_panel_settings_outlined, color: Colors.redAccent),
             title: const Text('لوحة الإدارة (للمشرف فقط)'),
             onTap: () {
-              Navigator.pop(context);
-              _showPinDialog(context);
+              Navigator.pop(context); // إغلاق القائمة الجانبية
+              showDialog(
+                context: context,
+                builder: (ctx) => const AdminPinDialog(),
+              );
             },
           ),
         ],
