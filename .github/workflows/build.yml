@@ -28,35 +28,31 @@ jobs:
       - name: Generate Android Project Structure
         run: flutter create --org com.example . --platforms=android
 
-      - name: Setup Fixed Keystore & Configure Signing
+      - name: Setup Fixed Keystore
+        run: |
+          mkdir -p ~/.android
+          # توليد مفتاح توقيع ثابت بنفس البصمة دائماً لكل التحديثات
+          keytool -genkeypair -v \
+            -keystore ~/.android/debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Configure Firebase & Android Settings
         run: |
           python3 - << 'EOF'
           import os, re
 
-          # 1. إنشاء مفتاح توقيع رقمي دائم وثابت لجميع التحديثات القادمة
-          keystore_path = "android/app/upload-keystore.jks"
-          if not os.path.exists(keystore_path):
-              os.system(
-                  'keytool -genkeypair -v -keystore ' + keystore_path +
-                  ' -alias alhutami_key -keyalg RSA -keysize 2048 -validity 10000' +
-                  ' -storepass alhutami_secure_pass_2026 -keypass alhutami_secure_pass_2026' +
-                  ' -dname "CN=Alhutami, OU=Electronics, O=Alhutami, L=Sanaa, ST=Sanaa, C=YE"'
-              )
-              print("Fixed Keystore generated successfully.")
-
-          # 2. إنشاء ملف key.properties لربط المفتاح بعملية البناء
-          with open("android/key.properties", "w") as f:
-              f.write("storePassword=alhutami_secure_pass_2026\n")
-              f.write("keyPassword=alhutami_secure_pass_2026\n")
-              f.write("keyAlias=alhutami_key\n")
-              f.write("storeFile=upload-keystore.jks\n")
-
-          # 3. نسخ ملف إعدادات فايربيس
+          # 1. نسخ ملف google-services.json
           if os.path.exists("google-services.json"):
               os.system("cp google-services.json android/app/")
               print("google-services.json copied.")
 
-          # 4. تفعيل فايربيس في settings.gradle.kts
+          # 2. إضافة Google Services في settings.gradle
           for settings_file in ["android/settings.gradle.kts", "android/settings.gradle"]:
               if os.path.exists(settings_file):
                   with open(settings_file, "r") as f:
@@ -66,8 +62,9 @@ jobs:
                       content = content.replace("plugins {", f"plugins {{\n{plugin_line}")
                   with open(settings_file, "w") as f:
                       f.write(content)
+                  print(f"Configured: {settings_file}")
 
-          # 5. ضبط build.gradle.kts للتوقيع بـ Keystore وتفعيل minSdk
+          # 3. تفعيل الإضافة وضبط minSdk في app/build.gradle
           for app_gradle in ["android/app/build.gradle.kts", "android/app/build.gradle"]:
               if os.path.exists(app_gradle):
                   with open(app_gradle, "r") as f:
@@ -80,14 +77,11 @@ jobs:
                   content = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 21', content)
                   content = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 21', content)
                   
-                  # توجيه الـ release ليستخدم التوقيع الثابت
-                  if "signingConfig = signingConfigs.getByName(\"debug\")" in content:
-                      content = content.replace("signingConfig = signingConfigs.getByName(\"debug\")", "signingConfig = signingConfigs.getByName(\"release\")")
-                  
                   with open(app_gradle, "w") as f:
                       f.write(content)
+                  print(f"Configured: {app_gradle}")
 
-          # 6. تعريب اسم التطبيق
+          # 4. تعريب اسم التطبيق
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
               with open(manifest_path, "r") as f:
@@ -95,6 +89,7 @@ jobs:
               m_content = re.sub(r'android:label="[^"]*"', 'android:label="الحطامي للإلكترونيات"', m_content)
               with open(manifest_path, "w") as f:
                   f.write(m_content)
+              print("App name set to Arabic.")
           EOF
 
       - name: Install Dependencies
