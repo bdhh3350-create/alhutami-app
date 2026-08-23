@@ -26,7 +26,20 @@ jobs:
           channel: 'stable'
 
       - name: Generate Android Project Structure
-        run: flutter create . --platforms=android
+        run: flutter create --org com.example . --platforms=android
+
+      - name: Configure Firebase in Android Project
+        run: |
+          # نقل ملف إعدادات فايربيس
+          if [ -f "google-services.json" ]; then
+            cp google-services.json android/app/
+          fi
+          
+          # إضافة Google Services Classpath في build.gradle الرئيسي
+          sed -i 's/dependencies {/dependencies {\n        classpath "com.google.gms:google-services:4.4.1"/' android/build.gradle || true
+          
+          # تفعيل إضافة Google Services في build.gradle الخاص بالتطبيق
+          echo 'apply plugin: "com.google.gms.google-services"' >> android/app/build.gradle
 
       - name: Set Arabic App Name
         run: |
