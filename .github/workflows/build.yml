@@ -28,33 +28,60 @@ jobs:
       - name: Generate Android Project Structure
         run: flutter create --org com.example . --platforms=android
 
-      - name: Configure Firebase in Android Project
+      - name: Configure Firebase & Arabic App Name
         run: |
-          # 1. نسخ ملف إعدادات فايربيس
-          if [ -f "google-services.json" ]; then
-            cp google-services.json android/app/
-          fi
+          python3 - << 'EOF'
+          import os, re
 
-          # 2. إضافة إضافة Google Services في ملف settings.gradle بالنظام الحديث
-          if [ -f "android/settings.gradle" ]; then
-            sed -i '/id "dev.flutter.flutter-gradle-plugin"/a \    id "com.google.gms.google-services" version "4.4.2" apply false' android/settings.gradle
-          elif [ -f "android/settings.gradle.kts" ]; then
-            sed -i '/id("dev.flutter.flutter-gradle-plugin")/a \    id("com.google.gms.google-services") version "4.4.2" apply false' android/settings.gradle.kts
-          fi
+          # 1. نسخ ملف google-services.json إلى مجلد الأندرويد
+          if os.path.exists("google-services.json"):
+              os.system("cp google-services.json android/app/")
+              print("google-services.json copied successfully.")
 
-          # 3. تفعيل إضافة Google Services وضبط الـ SDK في ملف build.gradle
-          if [ -f "android/app/build.gradle" ]; then
-            sed -i '/id "dev.flutter.flutter-gradle-plugin"/a \    id "com.google.gms.google-services"' android/app/build.gradle
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' android/app/build.gradle || true
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle || true
-          elif [ -f "android/app/build.gradle.kts" ]; then
-            sed -i '/id("dev.flutter.flutter-gradle-plugin")/a \    id("com.google.gms.google-services")' android/app/build.gradle.kts
-            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/g' android/app/build.gradle.kts || true
-          fi
+          # 2. إضافة إصدار Firebase في settings.gradle.kts
+          for settings_file in ["android/settings.gradle.kts", "android/settings.gradle"]:
+              if os.path.exists(settings_file):
+                  with open(settings_file, "r") as f:
+                      content = f.read()
+                  
+                  plugin_line = '    id("com.google.gms.google-services") version "4.4.2" apply false' if settings_file.endswith(".kts") else '    id "com.google.gms.google-services" version "4.4.2" apply false'
+                  
+                  if "com.google.gms.google-services" not in content and "plugins {" in content:
+                      content = content.replace("plugins {", f"plugins {{\n{plugin_line}")
+                  
+                  with open(settings_file, "w") as f:
+                      f.write(content)
+                  print(f"Configured: {settings_file}")
 
-      - name: Set Arabic App Name
-        run: |
-          sed -i 's/android:label="[^"]*"/android:label="الحطامي للإلكترونيات"/g' android/app/src/main/AndroidManifest.xml
+          # 3. تفعيل الإضافة وضبط minSdk في app/build.gradle.kts
+          for app_gradle in ["android/app/build.gradle.kts", "android/app/build.gradle"]:
+              if os.path.exists(app_gradle):
+                  with open(app_gradle, "r") as f:
+                      content = f.read()
+                  
+                  app_plugin = '    id("com.google.gms.google-services")' if app_gradle.endswith(".kts") else '    id "com.google.gms.google-services"'
+                  
+                  if "com.google.gms.google-services" not in content and "plugins {" in content:
+                      content = content.replace("plugins {", f"plugins {{\n{app_plugin}")
+                  
+                  # ضبط الحد الأدنى لـ SDK ليتوافق مع فايربيس
+                  content = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 21', content)
+                  content = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 21', content)
+                  
+                  with open(app_gradle, "w") as f:
+                      f.write(content)
+                  print(f"Configured: {app_gradle}")
+
+          # 4. تعريب اسم التطبيق إلى 'الحطامي للإلكترونيات'
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          if os.path.exists(manifest_path):
+              with open(manifest_path, "r") as f:
+                  m_content = f.read()
+              m_content = re.sub(r'android:label="[^"]*"', 'android:label="الحطامي للإلكترونيات"', m_content)
+              with open(manifest_path, "w") as f:
+                  f.write(m_content)
+              print("App name set to Arabic successfully.")
+          EOF
 
       - name: Install Dependencies
         run: flutter pub get
