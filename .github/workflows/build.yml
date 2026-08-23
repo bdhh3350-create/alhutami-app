@@ -28,51 +28,66 @@ jobs:
       - name: Generate Android Project Structure
         run: flutter create --org com.example . --platforms=android
 
-      - name: Configure Firebase & Arabic App Name
+      - name: Setup Fixed Keystore & Configure Signing
         run: |
           python3 - << 'EOF'
           import os, re
 
-          # 1. نسخ ملف google-services.json إلى مجلد الأندرويد
+          # 1. إنشاء مفتاح توقيع رقمي دائم وثابت لجميع التحديثات القادمة
+          keystore_path = "android/app/upload-keystore.jks"
+          if not os.path.exists(keystore_path):
+              os.system(
+                  'keytool -genkeypair -v -keystore ' + keystore_path +
+                  ' -alias alhutami_key -keyalg RSA -keysize 2048 -validity 10000' +
+                  ' -storepass alhutami_secure_pass_2026 -keypass alhutami_secure_pass_2026' +
+                  ' -dname "CN=Alhutami, OU=Electronics, O=Alhutami, L=Sanaa, ST=Sanaa, C=YE"'
+              )
+              print("Fixed Keystore generated successfully.")
+
+          # 2. إنشاء ملف key.properties لربط المفتاح بعملية البناء
+          with open("android/key.properties", "w") as f:
+              f.write("storePassword=alhutami_secure_pass_2026\n")
+              f.write("keyPassword=alhutami_secure_pass_2026\n")
+              f.write("keyAlias=alhutami_key\n")
+              f.write("storeFile=upload-keystore.jks\n")
+
+          # 3. نسخ ملف إعدادات فايربيس
           if os.path.exists("google-services.json"):
               os.system("cp google-services.json android/app/")
-              print("google-services.json copied successfully.")
+              print("google-services.json copied.")
 
-          # 2. إضافة إصدار Firebase في settings.gradle.kts
+          # 4. تفعيل فايربيس في settings.gradle.kts
           for settings_file in ["android/settings.gradle.kts", "android/settings.gradle"]:
               if os.path.exists(settings_file):
                   with open(settings_file, "r") as f:
                       content = f.read()
-                  
                   plugin_line = '    id("com.google.gms.google-services") version "4.4.2" apply false' if settings_file.endswith(".kts") else '    id "com.google.gms.google-services" version "4.4.2" apply false'
-                  
                   if "com.google.gms.google-services" not in content and "plugins {" in content:
                       content = content.replace("plugins {", f"plugins {{\n{plugin_line}")
-                  
                   with open(settings_file, "w") as f:
                       f.write(content)
-                  print(f"Configured: {settings_file}")
 
-          # 3. تفعيل الإضافة وضبط minSdk في app/build.gradle.kts
+          # 5. ضبط build.gradle.kts للتوقيع بـ Keystore وتفعيل minSdk
           for app_gradle in ["android/app/build.gradle.kts", "android/app/build.gradle"]:
               if os.path.exists(app_gradle):
                   with open(app_gradle, "r") as f:
                       content = f.read()
                   
                   app_plugin = '    id("com.google.gms.google-services")' if app_gradle.endswith(".kts") else '    id "com.google.gms.google-services"'
-                  
                   if "com.google.gms.google-services" not in content and "plugins {" in content:
                       content = content.replace("plugins {", f"plugins {{\n{app_plugin}")
                   
-                  # ضبط الحد الأدنى لـ SDK ليتوافق مع فايربيس
                   content = re.sub(r'minSdk\s*=\s*flutter\.minSdkVersion', 'minSdk = 21', content)
                   content = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 21', content)
                   
+                  # توجيه الـ release ليستخدم التوقيع الثابت
+                  if "signingConfig = signingConfigs.getByName(\"debug\")" in content:
+                      content = content.replace("signingConfig = signingConfigs.getByName(\"debug\")", "signingConfig = signingConfigs.getByName(\"release\")")
+                  
                   with open(app_gradle, "w") as f:
                       f.write(content)
-                  print(f"Configured: {app_gradle}")
 
-          # 4. تعريب اسم التطبيق إلى 'الحطامي للإلكترونيات'
+          # 6. تعريب اسم التطبيق
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
               with open(manifest_path, "r") as f:
@@ -80,7 +95,6 @@ jobs:
               m_content = re.sub(r'android:label="[^"]*"', 'android:label="الحطامي للإلكترونيات"', m_content)
               with open(manifest_path, "w") as f:
                   f.write(m_content)
-              print("App name set to Arabic successfully.")
           EOF
 
       - name: Install Dependencies
