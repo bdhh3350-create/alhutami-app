@@ -1,12 +1,64 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:googleapis_auth/auth_io.dart';
 import 'video_splash_screen.dart';
 
 // معالجة الإشعارات في الخلفية
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+}
+
+// كلاس مخصص لإرسال الإشعارات التلقائية لجميع الهواتف عبر Firebase Cloud Messaging V1 API
+class FcmSenderService {
+  static Future<void> sendBroadcastNotification({
+    required String title,
+    required String body,
+  }) async {
+    try {
+      final jsonString = await rootBundle.loadString('assets/service_account.json');
+      final serviceAccountJson = jsonDecode(jsonString);
+      
+      final accountCredentials = ServiceAccountCredentials.fromJson(serviceAccountJson);
+      final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
+      
+      final client = await clientViaServiceAccount(accountCredentials, scopes);
+      final projectId = serviceAccountJson['project_id'] ?? 'alhutami-app';
+      
+      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
+      
+      final messagePayload = {
+        'message': {
+          'topic': 'all',
+          'notification': {
+            'title': title,
+            'body': body,
+          },
+          'android': {
+            'priority': 'high',
+            'notification': {
+              'sound': 'default',
+              'channel_id': 'high_importance_channel',
+            }
+          }
+        }
+      };
+
+      await client.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(messagePayload),
+      );
+
+      client.close();
+    } catch (e) {
+      debugPrint("Error sending FCM notification: $e");
+    }
+  }
 }
 
 void main() async {
@@ -88,7 +140,7 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
   }
 }
 
-// ------------------- الواجهة الرئيسية المحدثة بالكامل (HomeScreen) -------------------
+// ------------------- الواجهة الرئيسية (HomeScreen) -------------------
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -210,7 +262,6 @@ class HomeTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // شريط البحث السريع
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
@@ -230,8 +281,6 @@ class HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-
-          // بانر العروض والإعلانات
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
@@ -277,8 +326,6 @@ class HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 22),
-
-          // قسم الوصول السريع
           const Text('الوصول السريع', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
           const SizedBox(height: 12),
           Row(
@@ -290,8 +337,6 @@ class HomeTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 25),
-
-          // بطاقات الخدمات المتميزة
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -300,7 +345,6 @@ class HomeTab extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-
           _buildFeatureCard(
             Icons.memory,
             'قسم البرمجة والسوفتوير',
@@ -393,7 +437,7 @@ class HomeTab extends StatelessWidget {
   }
 }
 
-// ------------------- 2. تبويب قطع الغيار والمنتجات (Products Tab) -------------------
+// ------------------- 2. تبويب القطع والمنتجات (قاعدة البيانات المباشرة) -------------------
 class ProductsTab extends StatefulWidget {
   const ProductsTab({super.key});
 
@@ -405,20 +449,10 @@ class _ProductsTabState extends State<ProductsTab> {
   int _selectedCategory = 0;
   final List<String> _categories = ['الكل', 'شاشات سامسونج', 'شاشات آيفون', 'بطاريات', 'أدوات صيانة', 'إكسسوارات'];
 
-  final List<Map<String, String>> _products = const [
-    {'name': 'شاشة Samsung S21 Ultra أصلية', 'cat': 'شاشات سامسونج', 'price': '110\$', 'tag': 'وكالة'},
-    {'name': 'شاشة iPhone 13 Pro Max OLED', 'cat': 'شاشات آيفون', 'price': '145\$', 'tag': 'أصلية سحب'},
-    {'name': 'بطارية iPhone 12 أصلية 100%', 'cat': 'بطاريات', 'price': '25\$', 'tag': 'جديد'},
-    {'name': 'شاشة Samsung A54 5G أصلية', 'cat': 'شاشات سامسونج', 'price': '45\$', 'tag': 'مع الفريم'},
-    {'name': 'هوت إير + كاوية لحام Sunshine', 'cat': 'أدوات صيانة', 'price': '85\$', 'tag': 'احترافي'},
-    {'name': 'دونجل تفليش وفك شفرات UnlockTool', 'cat': 'أدوات صيانة', 'price': '50\$', 'tag': 'تفعيل سنة'},
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // شريط الفئات
         Container(
           height: 55,
           color: Colors.white,
@@ -450,89 +484,117 @@ class _ProductsTabState extends State<ProductsTab> {
             },
           ),
         ),
-
-        // شبكة عرض المنتجات
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.all(14),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.76,
-            ),
-            itemCount: _products.length,
-            itemBuilder: (context, index) {
-              final item = _products[index];
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
-                  ],
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return const Center(child: Text('حدث خطأ في جلب المنتجات'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final docs = snapshot.data?.docs ?? [];
+              final filteredDocs = _selectedCategory == 0
+                  ? docs
+                  : docs.where((d) => (d.data() as Map<String, dynamic>)['category'] == _categories[_selectedCategory]).toList();
+
+              if (filteredDocs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey.shade400),
+                      const SizedBox(height: 10),
+                      const Text('لا توجد منتجات متوفرة حالياً في هذا القسم', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                );
+              }
+
+              return GridView.builder(
+                padding: const EdgeInsets.all(14),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.76,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                        ),
-                        child: Center(
-                          child: Icon(Icons.phone_android_rounded, size: 55, color: Colors.blue.shade700),
-                        ),
-                      ),
+                itemCount: filteredDocs.length,
+                itemBuilder: (context, index) {
+                  final data = filteredDocs[index].data() as Map<String, dynamic>;
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3)),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(10.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFF00ACC1).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              color: Colors.blue.shade50,
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
                             ),
-                            child: Text(item['tag']!, style: const TextStyle(fontSize: 10, color: Color(0xFF00838F), fontWeight: FontWeight.bold)),
+                            child: Center(
+                              child: Icon(Icons.phone_android_rounded, size: 55, color: Colors.blue.shade700),
+                            ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            item['name']!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(item['price']!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
-                              InkWell(
-                                onTap: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('طلب ${item['name']}')),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF0D47A1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 16),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00ACC1).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(4),
                                 ),
+                                child: Text(data['tag'] ?? 'متوفر', style: const TextStyle(fontSize: 10, color: Color(0xFF00838F), fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                data['name'] ?? '',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(data['price'] ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0D47A1))),
+                                  InkWell(
+                                    onTap: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text('طلب ${data['name']}')),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF0D47A1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 16),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           ),
@@ -600,7 +662,40 @@ class TrackingTab extends StatefulWidget {
 
 class _TrackingTabState extends State<TrackingTab> {
   final TextEditingController _codeController = TextEditingController();
-  bool _searched = false;
+  Map<String, dynamic>? _ticketData;
+  bool _loading = false;
+  bool _notFound = false;
+
+  void _searchTicket() async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) return;
+
+    setState(() {
+      _loading = true;
+      _notFound = false;
+      _ticketData = null;
+    });
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('repairs').doc(code).get();
+      if (doc.exists) {
+        setState(() {
+          _ticketData = doc.data();
+          _loading = false;
+        });
+      } else {
+        setState(() {
+          _notFound = true;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _notFound = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -631,7 +726,7 @@ class _TrackingTabState extends State<TrackingTab> {
                 const SizedBox(height: 20),
                 TextField(
                   controller: _codeController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.text,
                   decoration: InputDecoration(
                     hintText: 'مثال: 10452',
                     prefixIcon: const Icon(Icons.tag),
@@ -649,12 +744,10 @@ class _TrackingTabState extends State<TrackingTab> {
                       backgroundColor: const Color(0xFF0D47A1),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _searched = true;
-                      });
-                    },
-                    child: const Text('استعلام عن الحالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    onPressed: _loading ? null : _searchTicket,
+                    child: _loading
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('استعلام عن الحالة', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -662,7 +755,7 @@ class _TrackingTabState extends State<TrackingTab> {
           ),
           const SizedBox(height: 20),
 
-          if (_searched)
+          if (_ticketData != null)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -670,20 +763,46 @@ class _TrackingTabState extends State<TrackingTab> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.green.shade200),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(backgroundColor: Colors.green.shade600, child: const Icon(Icons.check, color: Colors.white)),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('تم اكتمال الصيانة بنجاح ✅', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green)),
-                        SizedBox(height: 4),
-                        Text('جهازك جاهز للاستلام في فرع المركز الرئيسي.', style: TextStyle(fontSize: 11, color: Colors.black87)),
-                      ],
-                    ),
+                  Row(
+                    children: [
+                      CircleAvatar(backgroundColor: Colors.green.shade600, child: const Icon(Icons.check, color: Colors.white)),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('حالة الجهاز: ${_ticketData!['status'] ?? 'قيد الصيانة'}',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.green)),
+                            Text('الجهاز: ${_ticketData!['device'] ?? ''}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
+                  if (_ticketData!['notes'] != null && _ticketData!['notes'] != '') ...[
+                    const Divider(height: 20),
+                    Text('ملاحظات الفني: ${_ticketData!['notes']}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  ],
+                ],
+              ),
+            ),
+
+          if (_notFound)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('لم يتم العثور على جهاز بهذا الرقم، يرجى التأكد.', style: TextStyle(color: Colors.red, fontSize: 13)),
                 ],
               ),
             ),
@@ -693,9 +812,362 @@ class _TrackingTabState extends State<TrackingTab> {
   }
 }
 
+// ------------------- 5. لوحة تحكم المشرف مع الإشعارات التلقائية -------------------
+class AdminDashboardScreen extends StatefulWidget {
+  const AdminDashboardScreen({super.key});
+
+  @override
+  State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  final _prodNameCtrl = TextEditingController();
+  final _prodPriceCtrl = TextEditingController();
+  final _prodTagCtrl = TextEditingController(text: 'وكالة');
+  String _selectedProdCat = 'شاشات سامسونج';
+
+  final _repairTicketCtrl = TextEditingController();
+  final _repairDeviceCtrl = TextEditingController();
+  final _repairNotesCtrl = TextEditingController();
+  String _selectedRepairStatus = 'جاهز للاستلام ✅';
+
+  bool _isSending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  // إضافة منتج جديد + إرسال إشعار فوري لجميع الزبائن
+  void _addProduct() async {
+    final name = _prodNameCtrl.text.trim();
+    final price = _prodPriceCtrl.text.trim();
+    final tag = _prodTagCtrl.text.trim();
+
+    if (name.isEmpty || price.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى ملء اسم القطعة والسعر')));
+      return;
+    }
+
+    setState(() => _isSending = true);
+
+    try {
+      // 1. حفظ في قاعدة بيانات Firestore
+      await FirebaseFirestore.instance.collection('products').add({
+        'name': name,
+        'price': price,
+        'category': _selectedProdCat,
+        'tag': tag,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. إرسال إشعار فوري لجميع الهواتف
+      await FcmSenderService.sendBroadcastNotification(
+        title: 'مركز الحطامي للإلكترونيات ⚡',
+        body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
+      );
+
+      _prodNameCtrl.clear();
+      _prodPriceCtrl.clear();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تمت إضافة القطعة وبث الإشعار لجميع الزبائن بنجاح! 🔔')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // تحديث كرت صيانة + إرسال إشعار تلقائي
+  void _saveRepairTicket() async {
+    final ticketNo = _repairTicketCtrl.text.trim();
+    final device = _repairDeviceCtrl.text.trim();
+    final notes = _repairNotesCtrl.text.trim();
+
+    if (ticketNo.isEmpty || device.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى إدخال رقم الكرت ونوع الجهاز')));
+      return;
+    }
+
+    setState(() => _isSending = true);
+
+    try {
+      // 1. حفظ في Firestore
+      await FirebaseFirestore.instance.collection('repairs').doc(ticketNo).set({
+        'ticketNumber': ticketNo,
+        'device': device,
+        'status': _selectedRepairStatus,
+        'notes': notes,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 2. إرسال إشعار
+      await FcmSenderService.sendBroadcastNotification(
+        title: 'تحديث حالة الصيانة - الحطامي 📱',
+        body: 'الكرت ($ticketNo - $device): $_selectedRepairStatus',
+      );
+
+      _repairTicketCtrl.clear();
+      _repairDeviceCtrl.clear();
+      _repairNotesCtrl.clear();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحديث كرت الصيانة وبث الإشعار بنجاح! ✅')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.redAccent.shade700,
+          title: const Text('لوحة إدارة المشرف', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
+            tabs: const [
+              Tab(icon: Icon(Icons.add_shopping_cart), text: 'إدارة المنتجات'),
+              Tab(icon: Icon(Icons.build), text: 'إدارة كروت الصيانة'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            // تبويب 1: إضافة المنتجات
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('إضافة قطعة غيار (مع بث إشعار فوري للجميع)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _prodNameCtrl,
+                            decoration: const InputDecoration(labelText: 'اسم القطعة (مثال: شاشة Samsung S21 Ultra)', border: OutlineInputBorder()),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _prodPriceCtrl,
+                                  decoration: const InputDecoration(labelText: 'السعر (مثال: 90\$)', border: OutlineInputBorder()),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: TextField(
+                                  controller: _prodTagCtrl,
+                                  decoration: const InputDecoration(labelText: 'الحالة (مثال: وكالة)', border: OutlineInputBorder()),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          DropdownButtonFormField<String>(
+                            value: _selectedProdCat,
+                            decoration: const InputDecoration(labelText: 'القسم', border: OutlineInputBorder()),
+                            items: const [
+                              DropdownMenuItem(value: 'شاشات سامسونج', child: Text('شاشات سامسونج')),
+                              DropdownMenuItem(value: 'شاشات آيفون', child: Text('شاشات آيفون')),
+                              DropdownMenuItem(value: 'بطاريات', child: Text('بطاريات')),
+                              DropdownMenuItem(value: 'أدوات صيانة', child: Text('أدوات صيانة')),
+                              DropdownMenuItem(value: 'إكسسوارات', child: Text('إكسسوارات')),
+                            ],
+                            onChanged: (val) => setState(() => _selectedProdCat = val!),
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1)),
+                              onPressed: _isSending ? null : _addProduct,
+                              icon: _isSending
+                                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                  : const Icon(Icons.send_rounded, color: Colors.white),
+                              label: const Text('إضافة وبث الإشعار فوراً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('المنتجات المضافة حالياً (اضغط لحذف أي منتج):', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance.collection('products').orderBy('createdAt', descending: true).snapshots(),
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                      final docs = snap.data!.docs;
+                      if (docs.isEmpty) return const Text('لا توجد منتجات مضافة بعد.');
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: docs.length,
+                        itemBuilder: (context, idx) {
+                          final p = docs[idx].data() as Map<String, dynamic>;
+                          return Card(
+                            child: ListTile(
+                              leading: const Icon(Icons.shopping_bag, color: Color(0xFF0D47A1)),
+                              title: Text(p['name'] ?? ''),
+                              subtitle: Text('${p['category']} | ${p['price']}'),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => docs[idx].reference.delete(),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            // تبويب 2: إدارة الصيانة
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Card(
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('تحديث صيانة جهاز (مع بث إشعار للعميل)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _repairTicketCtrl,
+                        decoration: const InputDecoration(labelText: 'رقم كرت الصيانة (مثال: 10452)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _repairDeviceCtrl,
+                        decoration: const InputDecoration(labelText: 'نوع الجهاز (مثال: Galaxy S22 Ultra)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: _selectedRepairStatus,
+                        decoration: const InputDecoration(labelText: 'حالة الصيانة الحالية', border: OutlineInputBorder()),
+                        items: const [
+                          DropdownMenuItem(value: 'قيد الفحص والكشف 🔍', child: Text('قيد الفحص والكشف 🔍')),
+                          DropdownMenuItem(value: 'جاري العمل والصيانة ⚙️', child: Text('جاري العمل والصيانة ⚙️')),
+                          DropdownMenuItem(value: 'جاهز للاستلام ✅', child: Text('جاهز للاستلام ✅')),
+                          DropdownMenuItem(value: 'تعذر الإصلاح ❌', child: Text('تعذر الإصلاح ❌')),
+                        ],
+                        onChanged: (val) => setState(() => _selectedRepairStatus = val!),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _repairNotesCtrl,
+                        decoration: const InputDecoration(labelText: 'ملاحظات إضافية للعميل (اختياري)', border: OutlineInputBorder()),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
+                          onPressed: _isSending ? null : _saveRepairTicket,
+                          icon: _isSending
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                              : const Icon(Icons.check, color: Colors.white),
+                          label: const Text('حفظ وبث الإشعار فوراً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ------------------- القائمة الجانبية (App Drawer) -------------------
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
+
+  void _showPinDialog(BuildContext context) {
+    final pinController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('رمز دخول المشرف'),
+          content: TextField(
+            controller: pinController,
+            keyboardType: TextInputType.number,
+            obscureText: true,
+            decoration: const InputDecoration(
+              hintText: 'أدخل الرمز السري',
+              prefixIcon: Icon(Icons.lock),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1)),
+              onPressed: () {
+                if (pinController.text.trim() == '7777') {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('الرمز السري غير صحيح!')),
+                  );
+                }
+              },
+              child: const Text('دخول', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -736,9 +1208,7 @@ class AppDrawer extends StatelessWidget {
             title: const Text('لوحة الإدارة (للمشرف فقط)'),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('لوحة الإدارة وقاعدة البيانات قيد التجهيز')),
-              );
+              _showPinDialog(context);
             },
           ),
         ],
