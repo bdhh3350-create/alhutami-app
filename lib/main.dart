@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'video_splash_screen.dart'; // استدعاء شاشة الفيديو الترحيبية
 
 void main() {
   runApp(const HutamiApp());
@@ -20,7 +21,8 @@ class HutamiApp extends StatelessWidget {
           secondary: const Color(0xFF00ACC1),
         ),
       ),
-      home: const HomeScreen(),
+      // جعل شاشة الفيديو هي نقطة البداية عند فتح التطبيق
+      home: const VideoSplashScreen(),
     );
   }
 }
@@ -51,10 +53,10 @@ class HomeScreen extends StatelessWidget {
                 elevation: 4,
                 color: const Color(0xFF0D47A1),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                child: Padding(
-                  padding: const EdgeInsets.all(20.0),
+                child: const Padding(
+                  padding: EdgeInsets.all(20.0),
                   child: Column(
-                    children: const [
+                    children: [
                       Icon(Icons.developer_board, size: 60, color: Colors.cyanAccent),
                       SizedBox(height: 10),
                       Text(
