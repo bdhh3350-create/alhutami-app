@@ -13,24 +13,30 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-// كلاس إرسال الإشعارات التلقائية
+// كلاس إرسال الإشعارات التلقائية عبر FCM HTTP v1 API
 class FcmSenderService {
-  static Future<void> sendBroadcastNotification({
+  static Future<String> sendBroadcastNotification({
     required String title,
     required String body,
   }) async {
     try {
-      final jsonString = await rootBundle.loadString('assets/service_account.json');
+      String jsonString = '';
+      // فحص مكان ملف المفتاح سواء كان في assets أو assets/videos
+      try {
+        jsonString = await rootBundle.loadString('assets/service_account.json');
+      } catch (_) {
+        jsonString = await rootBundle.loadString('assets/videos/service_account.json');
+      }
+
       final serviceAccountJson = jsonDecode(jsonString);
-      
       final accountCredentials = ServiceAccountCredentials.fromJson(serviceAccountJson);
       final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
-      
+
       final client = await clientViaServiceAccount(accountCredentials, scopes);
       final projectId = serviceAccountJson['project_id'] ?? 'alhutami-app';
-      
+
       final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
-      
+
       final messagePayload = {
         'message': {
           'topic': 'all',
@@ -48,15 +54,21 @@ class FcmSenderService {
         }
       };
 
-      await client.post(
+      final response = await client.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(messagePayload),
       );
 
       client.close();
+
+      if (response.statusCode == 200) {
+        return "SUCCESS";
+      } else {
+        return "SERVER_ERROR: ${response.statusCode} - ${response.body}";
+      }
     } catch (e) {
-      debugPrint("Error sending FCM notification: $e");
+      return "ERROR: $e";
     }
   }
 }
@@ -97,9 +109,38 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // استقبال الإشعار أثناء فتح التطبيق وإظهاره فوراً في بانر
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-        debugPrint("Notification: ${message.notification?.title}");
+        final title = message.notification?.title ?? 'تنبيه جديد';
+        final body = message.notification?.body ?? '';
+        
+        final context = navigatorKey.currentContext;
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF0D47A1),
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+              content: Row(
+                children: [
+                  const Icon(Icons.notifications_active, color: Colors.cyanAccent),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                        Text(body, style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
       }
     });
   }
@@ -166,6 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: const Color(0xFF0D47A1),
+          iconTheme: const IconThemeData(color: Colors.white),
           title: Row(
             children: [
               Container(
@@ -854,6 +896,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     setState(() => _isSending = true);
 
     try {
+      // 1. حفظ في قاعدة بيانات Firestore
       await FirebaseFirestore.instance.collection('products').add({
         'name': name,
         'price': price,
@@ -862,7 +905,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      await FcmSenderService.sendBroadcastNotification(
+      // 2. إرسال إشعار فوري لجميع الهواتف
+      final result = await FcmSenderService.sendBroadcastNotification(
         title: 'مركز الحطامي للإلكترونيات ⚡',
         body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
       );
@@ -871,9 +915,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       _prodPriceCtrl.clear();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تمت إضافة القطعة وبث الإشعار لجميع الزبائن بنجاح! 🔔')),
-        );
+        if (result == "SUCCESS") {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.green,
+              content: Text('تمت إضافة القطعة وبث الإشعار لجميع الزبائن بنجاح! 🔔'),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.orange.shade900,
+              content: Text('تم حفظ المنتج لكن حدث خطأ في الإشعار: $result'),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -905,7 +961,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      await FcmSenderService.sendBroadcastNotification(
+      final result = await FcmSenderService.sendBroadcastNotification(
         title: 'تحديث حالة الصيانة - الحطامي 📱',
         body: 'الكرت ($ticketNo - $device): $_selectedRepairStatus',
       );
@@ -915,9 +971,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       _repairNotesCtrl.clear();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحديث كرت الصيانة وبث الإشعار بنجاح! ✅')),
-        );
+        if (result == "SUCCESS") {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.green,
+              content: Text('تم تحديث كرت الصيانة وبث الإشعار بنجاح! ✅'),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.orange.shade900,
+              content: Text('تم التحديث مع تنبيه: $result'),
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -1112,7 +1180,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
   }
 }
 
-// ------------------- نافذة إدخال رمز المشرف المستقلة -------------------
+// ------------------- نافذة إدخال رمز المشرف -------------------
 class AdminPinDialog extends StatefulWidget {
   const AdminPinDialog({super.key});
 
@@ -1126,9 +1194,8 @@ class _AdminPinDialogState extends State<AdminPinDialog> {
 
   void _verifyAndEnter() {
     final enteredPin = _pinController.text.trim();
-    // يدعم الرمزين 7777 أو 7000
     if (enteredPin == '7777' || enteredPin == '7000') {
-      Navigator.pop(context); // إغلاق نافذة الـ PIN
+      Navigator.pop(context);
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
@@ -1229,7 +1296,7 @@ class AppDrawer extends StatelessWidget {
             leading: const Icon(Icons.admin_panel_settings_outlined, color: Colors.redAccent),
             title: const Text('لوحة الإدارة (للمشرف فقط)'),
             onTap: () {
-              Navigator.pop(context); // إغلاق القائمة الجانبية
+              Navigator.pop(context);
               showDialog(
                 context: context,
                 builder: (ctx) => const AdminPinDialog(),
