@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,28 +13,28 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-// كلاس إرسال الإشعارات التلقائية عبر FCM HTTP v1 API مع حماية المهلة الزمنية
+// كلاس إرسال الإشعارات التلقائية المباشر عبر FCM HTTP v1 API
 class FcmSenderService {
+  static const Map<String, dynamic> _serviceAccountCredentials = {
+    "type": "service_account",
+    "project_id": "alhutami-app",
+    "private_key_id": "b1dd6cb2e969e178177ae7f942414406793d1388",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDTarqKxw7tI6ZV\nsyHNv10OEiXgmBConJIBrzMhax+aeukBjcRNZ5dY6uqKUSdS8ViOsOyqLr9V6V4s\n+ST5byoj/jjBod5YlCQcQKg7RyUoLsyAvwPIw48FTJGZee25ID0NxWUZSnBPxgmP\nL1x8ziSaIMTEI+FS6Cb+RICkvwVc5bMRbhTbUvPiZOZPhGwwLv/IQJE4a7/sdv4B\nyX/8QaU5U/azw6H6tImXDSSW19uCgrNcpjhOw1zt6dyN3FaWyDE4yhcEd1na+ntG\nTNNzQMjCh1xUkiTza747fOUKn29PvsIErtez1MGVqGAQ3UkgOkHAg00HRIQDoPhq\nJpdpFenbAgMBAAECggEACQFRS8r5zEkJ8zmLlY9yn8BPI7dmckAlCfRT+bbt5C8b\nEKlgtKlWbX+oGNcnFSXZj05i7kbKeJbVn5XHKOa+xUS1Vy4VYfGBbkCkyc2YfBMu\nO8enGhyWUXP2+bITWaDRaO5BBahBi2xUiOhMCLbhIT2HFBGxLc5cptT1I89NI61D\nJ7cRLNedHkdaKQNgYP0E5HTu9pTP347CX0o4zQpTLLfR4NVc6XhqjXuP4Ic/hEEA\nxKjGSCEoepD1LXMhbNPX53ulnrglQupY2ZRcnwjNyBNr+ezA8bVygZGUQBX6LIdX\nMLi+mH0p4wU2jaZ4/0qYJcGvqZEzkfp20XE+QEPZUQKBgQD7kIvWDKC95ttp7S+c\nBngRSk+M8ekHY033yXvhsNLxB8eLA9yADRhg/HlsQEQlBoDLQTDQCfp9Z/Gjvyvs\nreuUVSGD+zCJmQ3WtseF0iNSIdoFSovYPhAAkz7aYtZHNhMhnTHq31BuYzFFDPDS\n/Ewl9XLDCt85NyqhCYzuWv2siwKBgQDXJPkXJweAgRxn8h/cvTwOIhEq1jxufo5S\nMdRIHKZ84+tIXapaqgmnlNW3UjWeC1f4vLiuBUh5NCCBN/DB88ASG1Hm3mEW3cU6\n9387b171g+iINUoJiVlWNdSA5XvS52nmAQ6qC8rb6lQc0O6mH+611CiqVdKMZgW+\nay/QE1vR8QKBgHlpg/Pk2FeO6eqvzMCS5rQBl29A+eTU6rZiieWdP9GQnZ/cVzl+\nGHwGnlu+kKUGBHcUmYhuqHSKDDepdnueXQqUI77dJsniEqnEQXu2tdFYAS94kRHm\nsjZ02mrwNNbdpFIe2g6vhNQiD49x9XD+z4mqcp7rylyE4ZAjWd9YDwKNAoGARSv3\nBlGfINriFi2Lvv38pBKh8GLnFSONgLHSrcjAYqEpEaBD2FiZOA8rU4CUCpddFnUe\n75x1O7rdxI4G02UaWPf9sjvHfYGaGyZd+u8I2ekqRzjS8BP/7C7sfvDJifqrWq72\nVwfpliFWH9mxESptJnrrBDEJu+hFan6t5bmDqRECgYBmG426Sn9bldQNXy5AN27p\n/Hhb4n7VXtVYP9B9Dc76OJ6SGe3UZWvhEdPpAuOFA7V7fpDOW2AMkOTLMZ//Uy2v\nsRDiKtlsvUe9MFBOZBxlCaiN72LRnAxOCgd6woUngm7rfIes/EcWM0yojQDOAtD/\nTD+LJx4lw2PlXuUPfRgCWg==\n-----END PRIVATE KEY-----\n",
+    "client_email": "firebase-adminsdk-fbsvc@alhutami-app.iam.gserviceaccount.com",
+    "client_id": "101351675512266777908",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40alhutami-app.iam.gserviceaccount.com",
+    "universe_domain": "googleapis.com"
+  };
+
   static Future<String> sendBroadcastNotification({
     required String title,
     required String body,
   }) async {
     try {
-      String jsonString = '';
-      
-      // محاولة البحث عن الملف في جميع المسارات الممكنة داخل assets
-      try {
-        jsonString = await rootBundle.loadString('assets/service_account.json');
-      } catch (_) {
-        try {
-          jsonString = await rootBundle.loadString('assets/videos/service_account.json');
-        } catch (_) {
-          return "ملف service_account.json غير موجود داخل مجلد assets";
-        }
-      }
-
-      final serviceAccountJson = jsonDecode(jsonString);
-      final accountCredentials = ServiceAccountCredentials.fromJson(serviceAccountJson);
+      final accountCredentials = ServiceAccountCredentials.fromJson(_serviceAccountCredentials);
       final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
 
       final client = await clientViaServiceAccount(accountCredentials, scopes)
@@ -43,7 +42,7 @@ class FcmSenderService {
         throw TimeoutException("انتهت مهلة الاتصال بحساب خدمة جوجل");
       });
 
-      final projectId = serviceAccountJson['project_id'] ?? 'alhutami-app';
+      final projectId = _serviceAccountCredentials['project_id'] ?? 'alhutami-app';
       final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
 
       final messagePayload = {
@@ -54,7 +53,7 @@ class FcmSenderService {
             'body': body,
           },
           'android': {
-            'priority': 'high',
+            'priority': 'HIGH',
             'notification': {
               'sound': 'default',
               'channel_id': 'high_importance_channel',
@@ -68,7 +67,7 @@ class FcmSenderService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(messagePayload),
       ).timeout(const Duration(seconds: 8), onTimeout: () {
-        throw TimeoutException("انتهت مهلة إرسال الإشعار إلى FCM");
+        throw TimeoutException("انتهت مهلة إرسال الإشعار");
       });
 
       client.close();
@@ -120,7 +119,6 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // استقبال الإشعار أثناء فتح التطبيق وإظهاره فوراً
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
         final title = message.notification?.title ?? 'تنبيه جديد';
@@ -907,7 +905,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     setState(() => _isSending = true);
 
     try {
-      // 1. حفظ في قاعدة بيانات Firestore فوراً
+      // 1. حفظ في Firestore فوراً
       await FirebaseFirestore.instance.collection('products').add({
         'name': name,
         'price': price,
@@ -919,7 +917,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       _prodNameCtrl.clear();
       _prodPriceCtrl.clear();
 
-      // 2. إرسال إشعار فوري
+      // 2. إرسال الإشعار الفوري
       final result = await FcmSenderService.sendBroadcastNotification(
         title: 'مركز الحطامي للإلكترونيات ⚡',
         body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
