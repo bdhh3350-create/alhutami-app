@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,7 +14,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-// كلاس إرسال الإشعارات التلقائية عبر FCM HTTP v1 API
+// كلاس إرسال الإشعارات التلقائية عبر FCM HTTP v1 API مع حماية المهلة الزمنية
 class FcmSenderService {
   static Future<String> sendBroadcastNotification({
     required String title,
@@ -21,20 +22,28 @@ class FcmSenderService {
   }) async {
     try {
       String jsonString = '';
-      // فحص مكان ملف المفتاح سواء كان في assets أو assets/videos
+      
+      // محاولة البحث عن الملف في جميع المسارات الممكنة داخل assets
       try {
         jsonString = await rootBundle.loadString('assets/service_account.json');
       } catch (_) {
-        jsonString = await rootBundle.loadString('assets/videos/service_account.json');
+        try {
+          jsonString = await rootBundle.loadString('assets/videos/service_account.json');
+        } catch (_) {
+          return "ملف service_account.json غير موجود داخل مجلد assets";
+        }
       }
 
       final serviceAccountJson = jsonDecode(jsonString);
       final accountCredentials = ServiceAccountCredentials.fromJson(serviceAccountJson);
       final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
 
-      final client = await clientViaServiceAccount(accountCredentials, scopes);
-      final projectId = serviceAccountJson['project_id'] ?? 'alhutami-app';
+      final client = await clientViaServiceAccount(accountCredentials, scopes)
+          .timeout(const Duration(seconds: 8), onTimeout: () {
+        throw TimeoutException("انتهت مهلة الاتصال بحساب خدمة جوجل");
+      });
 
+      final projectId = serviceAccountJson['project_id'] ?? 'alhutami-app';
       final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
 
       final messagePayload = {
@@ -58,17 +67,19 @@ class FcmSenderService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(messagePayload),
-      );
+      ).timeout(const Duration(seconds: 8), onTimeout: () {
+        throw TimeoutException("انتهت مهلة إرسال الإشعار إلى FCM");
+      });
 
       client.close();
 
       if (response.statusCode == 200) {
         return "SUCCESS";
       } else {
-        return "SERVER_ERROR: ${response.statusCode} - ${response.body}";
+        return "خطأ سيرفر (${response.statusCode}): ${response.body}";
       }
     } catch (e) {
-      return "ERROR: $e";
+      return "فشل الإرسال: $e";
     }
   }
 }
@@ -109,7 +120,7 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // استقبال الإشعار أثناء فتح التطبيق وإظهاره فوراً في بانر
+    // استقبال الإشعار أثناء فتح التطبيق وإظهاره فوراً
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
         final title = message.notification?.title ?? 'تنبيه جديد';
@@ -896,7 +907,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     setState(() => _isSending = true);
 
     try {
-      // 1. حفظ في قاعدة بيانات Firestore
+      // 1. حفظ في قاعدة بيانات Firestore فوراً
       await FirebaseFirestore.instance.collection('products').add({
         'name': name,
         'price': price,
@@ -905,14 +916,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // 2. إرسال إشعار فوري لجميع الهواتف
+      _prodNameCtrl.clear();
+      _prodPriceCtrl.clear();
+
+      // 2. إرسال إشعار فوري
       final result = await FcmSenderService.sendBroadcastNotification(
         title: 'مركز الحطامي للإلكترونيات ⚡',
         body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
       );
-
-      _prodNameCtrl.clear();
-      _prodPriceCtrl.clear();
 
       if (mounted) {
         if (result == "SUCCESS") {
@@ -926,7 +937,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.orange.shade900,
-              content: Text('تم حفظ المنتج لكن حدث خطأ في الإشعار: $result'),
+              duration: const Duration(seconds: 4),
+              content: Text('تم حفظ المنتج. ملاحظة الإشعار: $result'),
             ),
           );
         }
@@ -936,7 +948,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
       }
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
     }
   }
 
@@ -961,14 +975,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      _repairTicketCtrl.clear();
+      _repairDeviceCtrl.clear();
+      _repairNotesCtrl.clear();
+
       final result = await FcmSenderService.sendBroadcastNotification(
         title: 'تحديث حالة الصيانة - الحطامي 📱',
         body: 'الكرت ($ticketNo - $device): $_selectedRepairStatus',
       );
-
-      _repairTicketCtrl.clear();
-      _repairDeviceCtrl.clear();
-      _repairNotesCtrl.clear();
 
       if (mounted) {
         if (result == "SUCCESS") {
@@ -982,7 +996,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: Colors.orange.shade900,
-              content: Text('تم التحديث مع تنبيه: $result'),
+              duration: const Duration(seconds: 4),
+              content: Text('تم حفظ الكرت. ملاحظة الإشعار: $result'),
             ),
           );
         }
@@ -992,7 +1007,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
       }
     } finally {
-      if (mounted) setState(() => _isSending = false);
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
     }
   }
 
