@@ -1,86 +1,13 @@
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:googleapis_auth/auth_io.dart';
 import 'video_splash_screen.dart';
 
 // معالجة الإشعارات في الخلفية
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-}
-
-// كلاس إرسال الإشعارات التلقائية المباشر عبر FCM HTTP v1 API
-class FcmSenderService {
-  static const Map<String, dynamic> _serviceAccountCredentials = {
-    "type": "service_account",
-    "project_id": "alhutami-app",
-    "private_key_id": "b1dd6cb2e969e178177ae7f942414406793d1388",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDTarqKxw7tI6ZV\nsyHNv10OEiXgmBConJIBrzMhax+aeukBjcRNZ5dY6uqKUSdS8ViOsOyqLr9V6V4s\n+ST5byoj/jjBod5YlCQcQKg7RyUoLsyAvwPIw48FTJGZee25ID0NxWUZSnBPxgmP\nL1x8ziSaIMTEI+FS6Cb+RICkvwVc5bMRbhTbUvPiZOZPhGwwLv/IQJE4a7/sdv4B\nyX/8QaU5U/azw6H6tImXDSSW19uCgrNcpjhOw1zt6dyN3FaWyDE4yhcEd1na+ntG\nTNNzQMjCh1xUkiTza747fOUKn29PvsIErtez1MGVqGAQ3UkgOkHAg00HRIQDoPhq\nJpdpFenbAgMBAAECggEACQFRS8r5zEkJ8zmLlY9yn8BPI7dmckAlCfRT+bbt5C8b\nEKlgtKlWbX+oGNcnFSXZj05i7kbKeJbVn5XHKOa+xUS1Vy4VYfGBbkCkyc2YfBMu\nO8enGhyWUXP2+bITWaDRaO5BBahBi2xUiOhMCLbhIT2HFBGxLc5cptT1I89NI61D\nJ7cRLNedHkdaKQNgYP0E5HTu9pTP347CX0o4zQpTLLfR4NVc6XhqjXuP4Ic/hEEA\nxKjGSCEoepD1LXMhbNPX53ulnrglQupY2ZRcnwjNyBNr+ezA8bVygZGUQBX6LIdX\nMLi+mH0p4wU2jaZ4/0qYJcGvqZEzkfp20XE+QEPZUQKBgQD7kIvWDKC95ttp7S+c\nBngRSk+M8ekHY033yXvhsNLxB8eLA9yADRhg/HlsQEQlBoDLQTDQCfp9Z/Gjvyvs\nreuUVSGD+zCJmQ3WtseF0iNSIdoFSovYPhAAkz7aYtZHNhMhnTHq31BuYzFFDPDS\n/Ewl9XLDCt85NyqhCYzuWv2siwKBgQDXJPkXJweAgRxn8h/cvTwOIhEq1jxufo5S\nMdRIHKZ84+tIXapaqgmnlNW3UjWeC1f4vLiuBUh5NCCBN/DB88ASG1Hm3mEW3cU6\n9387b171g+iINUoJiVlWNdSA5XvS52nmAQ6qC8rb6lQc0O6mH+611CiqVdKMZgW+\nay/QE1vR8QKBgHlpg/Pk2FeO6eqvzMCS5rQBl29A+eTU6rZiieWdP9GQnZ/cVzl+\nGHwGnlu+kKUGBHcUmYhuqHSKDDepdnueXQqUI77dJsniEqnEQXu2tdFYAS94kRHm\nsjZ02mrwNNbdpFIe2g6vhNQiD49x9XD+z4mqcp7rylyE4ZAjWd9YDwKNAoGARSv3\nBlGfINriFi2Lvv38pBKh8GLnFSONgLHSrcjAYqEpEaBD2FiZOA8rU4CUCpddFnUe\n75x1O7rdxI4G02UaWPf9sjvHfYGaGyZd+u8I2ekqRzjS8BP/7C7sfvDJifqrWq72\nVwfpliFWH9mxESptJnrrBDEJu+hFan6t5bmDqRECgYBmG426Sn9bldQNXy5AN27p\n/Hhb4n7VXtVYP9B9Dc76OJ6SGe3UZWvhEdPpAuOFA7V7fpDOW2AMkOTLMZ//Uy2v\nsRDiKtlsvUe9MFBOZBxlCaiN72LRnAxOCgd6woUngm7rfIes/EcWM0yojQDOAtD/\nTD+LJx4lw2PlXuUPfRgCWg==\n-----END PRIVATE KEY-----\n",
-    "client_email": "firebase-adminsdk-fbsvc@alhutami-app.iam.gserviceaccount.com",
-    "client_id": "101351675512266777908",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40alhutami-app.iam.gserviceaccount.com",
-    "universe_domain": "googleapis.com"
-  };
-
-  static Future<String> sendBroadcastNotification({
-    required String title,
-    required String body,
-  }) async {
-    try {
-      final accountCredentials = ServiceAccountCredentials.fromJson(_serviceAccountCredentials);
-      final scopes = ['https://www.googleapis.com/auth/firebase.messaging'];
-
-      final client = await clientViaServiceAccount(accountCredentials, scopes)
-          .timeout(const Duration(seconds: 8), onTimeout: () {
-        throw TimeoutException("انتهت مهلة الاتصال بحساب خدمة جوجل");
-      });
-
-      final projectId = _serviceAccountCredentials['project_id'] ?? 'alhutami-app';
-      final url = Uri.parse('https://fcm.googleapis.com/v1/projects/$projectId/messages:send');
-
-      final messagePayload = {
-        'message': {
-          'topic': 'all',
-          'notification': {
-            'title': title,
-            'body': body,
-          },
-          'android': {
-            'priority': 'HIGH',
-            'notification': {
-              'sound': 'default',
-              'channel_id': 'high_importance_channel',
-            }
-          }
-        }
-      };
-
-      final response = await client.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(messagePayload),
-      ).timeout(const Duration(seconds: 8), onTimeout: () {
-        throw TimeoutException("انتهت مهلة إرسال الإشعار");
-      });
-
-      client.close();
-
-      if (response.statusCode == 200) {
-        return "SUCCESS";
-      } else {
-        return "خطأ سيرفر (${response.statusCode}): ${response.body}";
-      }
-    } catch (e) {
-      return "فشل الإرسال: $e";
-    }
-  }
 }
 
 void main() async {
@@ -119,6 +46,7 @@ class _HutamiAppState extends State<HutamiApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // استقبال الإشعار أثناء فتح التطبيق وإظهاره فوراً في شريط علوي
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
         final title = message.notification?.title ?? 'تنبيه جديد';
@@ -863,7 +791,7 @@ class _TrackingTabState extends State<TrackingTab> {
   }
 }
 
-// ------------------- 5. لوحة تحكم المشرف -------------------
+// ------------------- 5. لوحة تحكم المشرف (سريعة وفورية ومحمية) -------------------
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
 
@@ -884,7 +812,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
   final _repairNotesCtrl = TextEditingController();
   String _selectedRepairStatus = 'جاهز للاستلام ✅';
 
-  bool _isSending = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -892,6 +820,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     _tabController = TabController(length: 2, vsync: this);
   }
 
+  // إضافة منتج جديد لحظياً
   void _addProduct() async {
     final name = _prodNameCtrl.text.trim();
     final price = _prodPriceCtrl.text.trim();
@@ -902,10 +831,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       return;
     }
 
-    setState(() => _isSending = true);
+    setState(() => _isSaving = true);
 
     try {
-      // 1. حفظ في Firestore فوراً
       await FirebaseFirestore.instance.collection('products').add({
         'name': name,
         'price': price,
@@ -917,41 +845,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       _prodNameCtrl.clear();
       _prodPriceCtrl.clear();
 
-      // 2. إرسال الإشعار الفوري
-      final result = await FcmSenderService.sendBroadcastNotification(
-        title: 'مركز الحطامي للإلكترونيات ⚡',
-        body: 'تم توفير: $name بسعر $price في قسم $_selectedProdCat!',
-      );
-
       if (mounted) {
-        if (result == "SUCCESS") {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Colors.green,
-              content: Text('تمت إضافة القطعة وبث الإشعار لجميع الزبائن بنجاح! 🔔'),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.orange.shade900,
-              duration: const Duration(seconds: 4),
-              content: Text('تم حفظ المنتج. ملاحظة الإشعار: $result'),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text('تمت إضافة القطعة بنجاح وتحديث المتجر للزبائن! ⚡'),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء الحفظ: $e')));
       }
     } finally {
       if (mounted) {
-        setState(() => _isSending = false);
+        setState(() => _isSaving = false);
       }
     }
   }
 
+  // تحديث كرت صيانة لحظياً
   void _saveRepairTicket() async {
     final ticketNo = _repairTicketCtrl.text.trim();
     final device = _repairDeviceCtrl.text.trim();
@@ -962,7 +875,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       return;
     }
 
-    setState(() => _isSending = true);
+    setState(() => _isSaving = true);
 
     try {
       await FirebaseFirestore.instance.collection('repairs').doc(ticketNo).set({
@@ -977,36 +890,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
       _repairDeviceCtrl.clear();
       _repairNotesCtrl.clear();
 
-      final result = await FcmSenderService.sendBroadcastNotification(
-        title: 'تحديث حالة الصيانة - الحطامي 📱',
-        body: 'الكرت ($ticketNo - $device): $_selectedRepairStatus',
-      );
-
       if (mounted) {
-        if (result == "SUCCESS") {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              backgroundColor: Colors.green,
-              content: Text('تم تحديث كرت الصيانة وبث الإشعار بنجاح! ✅'),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.orange.shade900,
-              duration: const Duration(seconds: 4),
-              content: Text('تم حفظ الكرت. ملاحظة الإشعار: $result'),
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text('تم تحديث حالة كرت الصيانة للعميل بنجاح! ✅'),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ أثناء التحديث: $e')));
       }
     } finally {
       if (mounted) {
-        setState(() => _isSending = false);
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -1046,7 +944,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('إضافة قطعة غيار (مع بث إشعار فوري للجميع)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                          const Text('إضافة قطعة غيار جديدة للمتجر', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 12),
                           TextField(
                             controller: _prodNameCtrl,
@@ -1058,7 +956,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                               Expanded(
                                 child: TextField(
                                   controller: _prodPriceCtrl,
-                                  decoration: const InputDecoration(labelText: 'السعر (مثال: 90\$)', border: OutlineInputBorder()),
+                                  decoration: const InputDecoration(labelText: 'السعر (مثال: 90\$ أو 15 ألف)', border: OutlineInputBorder()),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -1089,11 +987,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                             height: 48,
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0D47A1)),
-                              onPressed: _isSending ? null : _addProduct,
-                              icon: _isSending
+                              onPressed: _isSaving ? null : _addProduct,
+                              icon: _isSaving
                                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                  : const Icon(Icons.send_rounded, color: Colors.white),
-                              label: const Text('إضافة وبث الإشعار فوراً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  : const Icon(Icons.add_circle, color: Colors.white),
+                              label: const Text('إضافة وتحديث المتجر فوراً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             ),
                           ),
                         ],
@@ -1142,7 +1040,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('تحديث صيانة جهاز (مع بث إشعار للعميل)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      const Text('تحديث صيانة جهاز عميل', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       TextField(
                         controller: _repairTicketCtrl,
@@ -1176,11 +1074,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                         height: 48,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
-                          onPressed: _isSending ? null : _saveRepairTicket,
-                          icon: _isSending
+                          onPressed: _isSaving ? null : _saveRepairTicket,
+                          icon: _isSaving
                               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                               : const Icon(Icons.check, color: Colors.white),
-                          label: const Text('حفظ وبث الإشعار فوراً', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          label: const Text('حفظ ونشر التحديث للعميل', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
